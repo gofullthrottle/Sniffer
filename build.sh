@@ -12,11 +12,14 @@ then
   echo 'Im a Mac!'
   OS="osx"
   LIB=$LIB_OSX
+  # cp config-mac.txt config.txt
  else
   echo 'Im a Pi!'
   LIB=$LIB_LINUX
+  # cp config-pi.txt config.txt
 fi
 
+#TODO: Add check for libpcap
 get_lib ()
 {
   echo 'Downloading '$OS' build...'
@@ -42,7 +45,7 @@ fi
 
 TINS_LIB_PATH="lib/libtins/"$OS"/lib"
 TINS_INCLUDE_PATH="lib/libtins/"$OS"/include/"
-APP_NAME="build/tinsSniffer"
+APP_NAME="sniffer"
 SRC=""
 
 # NOTE: Make sure you have libpcap installed on your machine

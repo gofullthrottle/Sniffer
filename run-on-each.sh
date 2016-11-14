@@ -9,5 +9,4 @@ do
 	echo $AT
 
 	ssh $AT "$1"
-
 done
