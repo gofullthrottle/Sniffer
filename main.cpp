@@ -7,62 +7,189 @@
 using namespace Tins;
 using namespace std;
 
-void addRadioHeader(stringstream& ss, const RadioTap& rf,Timestamp& t){
-    ss<<to_string(t.seconds())<<","<<"Radio,"<<std::to_string((rf.dbm_signal()))<<","<<rf.channel_freq()<<","<<rf.channel_type()<<",";
+template <class T>
+HWAddress<6> get_src_addr(const T& data) {
+    if(!data.from_ds() && !data.to_ds())
+        return data.addr2();
+    if(!data.from_ds() && data.to_ds())
+        return data.addr2();
+    return data.addr3();
 }
-bool processPacket(PDU &pdu, Timestamp& t) {
 
-    const Dot11 &d11 = pdu.rfind_pdu<Dot11>();
-    const RadioTap &rf =  pdu.rfind_pdu<RadioTap>();
+template <class T>
+HWAddress<6> get_dst_addr(const T& data) {
+    if(!data.from_ds() && !data.to_ds())
+        return data.addr1();
+    if(!data.from_ds() && data.to_ds())
+        return data.addr3();
+    return data.addr1();
+}
+
+string parse_types(const Packet& packet) {
     stringstream ss;
-    ss<<""<<endl;
-    Packet p  = Packet();
+    try {
+        const PDU *cur = packet.pdu();
+        while(cur) {
+            ss << Utils::to_string(cur->pdu_type()) << " ";
+            cur = cur->inner_pdu();
+        }
+        ss << "(" << packet.pdu()->size() << " bytes)";
+    } catch (...) {
+    }
+    return ss.str();
+}
 
+string parse_radiotap(const Packet& packet, const RadioTap &rt) {
+    stringstream ss;
+    ss <<
+        "\"timestamp\":" << packet.timestamp().seconds() << "," <<
+        "\"dbm_signal\":" << int(rt.dbm_signal()) << "," <<
+        "\"channel_freq\":" << rt.channel_freq() << ",";
+    return ss.str();
+}
 
-    if (d11.matches_flag(Tins::PDU::DOT11_MANAGEMENT)) {
+string parse_beacon(Packet packet) {
+    stringstream ss;
+    try {
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        const Dot11Beacon &data = packet.pdu()->rfind_pdu<Dot11Beacon>();
+        string ssid = data.ssid();
+        HWAddress<6> src_addr = get_src_addr(data);
+        bool privacy = data.capabilities().privacy();
+        ss << "{" <<
+            "\"type\":\"beacon\"," <<
+            parse_radiotap(packet, rt) <<
+            "\"src_addr\":\"" << src_addr << "\"," <<
+            "\"ssid\":\"" << ssid << "\"," <<
+            "\"privacy\":\"" << (privacy ? "true" : "false") << "\"" <<
+            "}";
+    } catch (...) {
+    }
+    return ss.str();
+}
 
-        const Dot11ManagementFrame &d11_b = pdu.rfind_pdu<Dot11ManagementFrame>();
+string parse_probe(Packet packet) {
+    stringstream ss;
+    try {
+        // first check that it's a probe request frame
+        packet.pdu()->rfind_pdu<Tins::Dot11ProbeRequest>();
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        const Dot11ManagementFrame &data = packet.pdu()->rfind_pdu<Dot11ManagementFrame>();
+        string ssid = data.ssid();
+        HWAddress<6> src_addr = get_src_addr(data);
+        ss << "{" <<
+            "\"type\":\"probe\"," <<
+            parse_radiotap(packet, rt) <<
+            "\"src_addr\":\"" << src_addr << "\"," <<
+            "\"ssid\":\"" << ssid << "\"" <<
+            "}";
+    } catch (...) {
+    }
+    return ss.str();
+}
 
-        if(d11_b.matches_flag(Tins::PDU::PDUType::DOT11_BEACON)){
-            addRadioHeader(ss, rf,t);
-            try{
-                ss<<"Beacn,"<<d11_b.addr2()<<","<<d11_b.ssid();
-            }
-            catch(option_not_found){
+string parse_get(Packet packet) {
+    stringstream ss;
+    try {
+        // first check that we have everything we need
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        const RawPDU &raw = packet.pdu()->rfind_pdu<RawPDU>();
+        const IP &ip = packet.pdu()->rfind_pdu<IP>();
+        const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
+
+        string src_ip = ip.src_addr().to_string();
+        string dst_ip = ip.dst_addr().to_string();
+
+        int src_port = tcp.sport();
+        int dst_port = tcp.dport();
+
+        // convert the raw data to a printable string
+        stringstream data, data_printable;
+        int n = raw.payload().size();
+        for(int i = 0; i < n; i++){
+            char ch = raw.payload()[i];
+            data << ch;
+            if(isprint(ch)) {
+                if(ch == '"') {
+                    data_printable << "\"";
+                }
+                data_printable << ch;
+            } else {
+                data_printable << ".";
             }
         }
-        else if(d11.matches_flag(Tins::PDU::PDUType::DOT11_PROBE_REQ) ){
-            addRadioHeader(ss, rf,t);
-            ss<<"Probe," <<d11_b.addr2()<<","<<d11_b.ssid();
-        }
-    }
-    else if (d11.matches_flag(Tins::PDU::DOT11_DATA)){
-        const Dot11Data &data = pdu.rfind_pdu<Dot11Data>();
-        if (data.to_ds() == 0 && data.from_ds() == 1) {
 
-            if(data.addr2() == data.addr3()){
-                addRadioHeader(ss, rf,t);
-                ss<<"Data,"<<data.addr1()<<","<<data.addr2();
-            }
-        }
-    }
-    if(ss.str().length()>6){
-        cout<< ss.str();
+        // search for GET and Host: in the data
+        string data_str = data.str();
+        int get_index = data_str.find("GET ", 0);
+        int host_index = data_str.find("Host: ", 0);
 
+        if(get_index == -1 || host_index == -1) {
+            throw;
+        }
+        
+        int end = data_str.find(" ", get_index+4);
+        string get = data_str.substr(get_index+4,end-(get_index+4));
+        end = data_str.find("\r", host_index+6);
+        string host = data_str.substr(host_index+6,end-(host_index+6));
+        
+        ss << "{" <<
+            "\"type\":\"get\"," <<
+            parse_radiotap(packet, rt) <<
+            "\"src\":{" <<
+                "\"ip\":\"" << src_ip << "\"," <<
+                "\"port\":" << src_port <<
+                "}," <<
+            "\"dst\":{" <<
+                "\"ip\":\"" << dst_ip << "\"," <<
+                "\"port\":" << dst_port <<
+                "}," <<
+            "\"host\":\"" << host << "\"," <<
+            "\"get\":\"" << get << "\"" <<
+            // ",\"raw\":\"" << data_printable.str() << "\"" <<
+            "}";
+    } catch (...) {
     }
-    return true;
+    return ss.str();
+}
+
+bool print0 = false;
+void println(string str) {
+    if(str.size() > 0) {
+        cout << str;
+        if(print0) {
+            cout << '\0';
+        } else {
+            cout << endl;
+        }
+        cout.flush();
+    }
 }
 
 int main(int argc, char* argv[]) {
 
-    std::string interface = "en0";
-    if(argc == 2){
+    string interface = "en0";
+    if(argc > 1){
         interface = argv[1];
     }
 
-    Sniffer sniffer(interface, 2000, true, "type mgt or type data", true);
-    while(Packet pkt = sniffer.next_packet()) {
-        Timestamp t=pkt.timestamp();
-        processPacket(*pkt.pdu(),t);
+    SnifferConfiguration config;
+    config.set_promisc_mode(true);
+    config.set_rfmon(true);
+    config.set_filter("type mgt or type data");
+
+    Sniffer sniffer(interface, config);
+
+    while(true) {
+        try {
+            Packet packet = sniffer.next_packet();
+            if(packet) {
+                // println(parse_types(packet));
+                println(parse_beacon(packet));
+                println(parse_probe(packet));
+                println(parse_get(packet));
+            }
+        } catch (...) {
+        }
     }
 }

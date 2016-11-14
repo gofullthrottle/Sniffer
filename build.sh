@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 
 BUILD=`uname -s`
 OS="linux"
