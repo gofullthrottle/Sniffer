@@ -7,15 +7,28 @@
 using namespace Tins;
 using namespace std;
 
-// string lower_string(const string& str) {
-//     string lower;
-//     transform(str.begin(), str.end(), back_inserter(lower), ::tolower);
-//     return lower;
-// }
+bool print0 = true;
+void println(string str) {
+    if(str.size() > 0) {
+        cout << str;
+        if(print0) {
+            cout << '\0';
+        } else {
+            cout << endl;
+        }
+        cout.flush();
+    }
+}
 
-// string::size_type ifind(const string& str, const string& substr) {
-//     return lower_string(str).find(lower_string(substr));
-// }
+string lower_string(const string& str) {
+    string lower;
+    transform(str.begin(), str.end(), back_inserter(lower), ::tolower);
+    return lower;
+}
+
+string::size_type ifind(const string& str, const string& substr) {
+    return lower_string(str).find(lower_string(substr));
+}
 
 template <class T>
 HWAddress<6> get_src_addr(const T& data) {
@@ -142,7 +155,7 @@ string parse_get(Packet packet) {
     stringstream ss;
     try {
         // first check that we have everything we need
-        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        const RadioTap &rt = packet.pdu()->rfind_pdu<RadioTap>();
         const RawPDU &raw = packet.pdu()->rfind_pdu<RawPDU>();
 
         // convert the raw data to a printable string
@@ -171,19 +184,19 @@ string parse_get(Packet packet) {
             throw runtime_error("Raw TCP data does not contain a GET request.");
         }
 
-        // int jpg_index = data_str.find("jpg", 0);
-        // int jpeg_index = data_str.find("jpeg", 0);
-        // if(jpg_index == -1 && jpeg_index == -1) {
-        //     throw runtime_error("Not a JPG.");
-        // }
+        int jpg_index = ifind(data_str, "jpg");
+        int jpeg_index = ifind(data_str, "jpeg");
+        if(jpg_index == -1 && jpeg_index == -1) {
+            throw runtime_error("Not a JPG.");
+        }
         
         int end = data_str.find(" ", get_index+4);
         string get = data_str.substr(get_index+4,end-(get_index+4));
         end = data_str.find("\r", host_index+6);
         string host = data_str.substr(host_index+6,end-(host_index+6));
 
-        // ss << host << get;
-        // return ss.str();
+        ss << host << get;
+        return ss.str();
         
         const IP &ip = packet.pdu()->rfind_pdu<IP>();
         const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
@@ -214,19 +227,6 @@ string parse_get(Packet packet) {
     return ss.str();
 }
 
-bool print0 = false;
-void println(string str) {
-    if(str.size() > 0) {
-        cout << str;
-        if(print0) {
-            cout << '\0';
-        } else {
-            cout << endl;
-        }
-        cout.flush();
-    }
-}
-
 int main(int argc, char* argv[]) {
 
     string interface = "en0";
@@ -237,7 +237,7 @@ int main(int argc, char* argv[]) {
     SnifferConfiguration config;
     config.set_promisc_mode(true);
     config.set_rfmon(true);
-    config.set_filter("type mgt or type data");
+    config.set_filter("type data and tcp port http");
 
     Sniffer sniffer(interface, config);
 
