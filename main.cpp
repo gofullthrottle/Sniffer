@@ -7,7 +7,7 @@
 using namespace Tins;
 using namespace std;
 
-bool print0 = false;
+bool print0 = true;
 void println(string str) {
     if(str.size() > 0) {
         cout << str;
