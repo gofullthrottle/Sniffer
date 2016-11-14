@@ -7,6 +7,16 @@
 using namespace Tins;
 using namespace std;
 
+// string lower_string(const string& str) {
+//     string lower;
+//     transform(str.begin(), str.end(), back_inserter(lower), ::tolower);
+//     return lower;
+// }
+
+// string::size_type ifind(const string& str, const string& substr) {
+//     return lower_string(str).find(lower_string(substr));
+// }
+
 template <class T>
 HWAddress<6> get_src_addr(const T& data) {
     if(!data.from_ds() && !data.to_ds())
@@ -160,11 +170,20 @@ string parse_get(Packet packet) {
             // cout << data_printable.str() << endl;
             throw runtime_error("Raw TCP data does not contain a GET request.");
         }
+
+        // int jpg_index = data_str.find("jpg", 0);
+        // int jpeg_index = data_str.find("jpeg", 0);
+        // if(jpg_index == -1 && jpeg_index == -1) {
+        //     throw runtime_error("Not a JPG.");
+        // }
         
         int end = data_str.find(" ", get_index+4);
         string get = data_str.substr(get_index+4,end-(get_index+4));
         end = data_str.find("\r", host_index+6);
         string host = data_str.substr(host_index+6,end-(host_index+6));
+
+        // ss << host << get;
+        // return ss.str();
         
         const IP &ip = packet.pdu()->rfind_pdu<IP>();
         const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
@@ -227,9 +246,9 @@ int main(int argc, char* argv[]) {
             Packet packet = sniffer.next_packet();
             if(packet) {
                 // println(parse_types(packet));
-                println(parse_beacon(packet));
-                println(parse_probe(packet));
-                println(parse_ip(packet));
+                // println(parse_beacon(packet));
+                // println(parse_probe(packet));
+                // println(parse_ip(packet));
                 println(parse_get(packet));
             }
         } catch (...) {
