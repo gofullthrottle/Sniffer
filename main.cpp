@@ -41,10 +41,25 @@ string parse_types(const Packet& packet) {
 
 string parse_radiotap(const Packet& packet, const RadioTap &rt) {
     stringstream ss;
-    ss <<
-        "\"timestamp\":" << packet.timestamp().seconds() << "," <<
-        "\"dbm_signal\":" << int(rt.dbm_signal()) << "," <<
-        "\"channel_freq\":" << rt.channel_freq() << ",";
+
+    try {
+        unsigned int timestamp = packet.timestamp().seconds();
+        ss << "\"timestamp\":" << timestamp << ",";
+    } catch (...) {
+    }
+
+    try {
+        int dbm_signal = rt.dbm_signal();
+        ss << "\"dbm_signal\":" << dbm_signal << ",";
+    } catch (...) {
+    }
+
+    try {
+        int channel_freq = rt.channel_freq();
+        ss << "\"channel_freq\":" << channel_freq << ",";
+    } catch (...) {
+    }
+
     return ss.str();
 }
 
@@ -88,20 +103,37 @@ string parse_probe(Packet packet) {
     return ss.str();
 }
 
+string parse_ip(Packet packet) {
+    stringstream ss;
+    try {
+        // first check that we have everything we need
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        const IP &ip = packet.pdu()->rfind_pdu<IP>();
+
+        string src_ip = ip.src_addr().to_string();
+        string dst_ip = ip.dst_addr().to_string();
+
+        ss << "{" <<
+            "\"type\":\"ip\"," <<
+            parse_radiotap(packet, rt) <<
+            "\"src\":{" <<
+                "\"ip\":\"" << src_ip << "\"" <<
+                "}," <<
+            "\"dst\":{" <<
+                "\"ip\":\"" << dst_ip << "\"" <<
+                "}" <<
+            "}";
+    } catch (...) {
+    }
+    return ss.str();
+}
+
 string parse_get(Packet packet) {
     stringstream ss;
     try {
         // first check that we have everything we need
         const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
         const RawPDU &raw = packet.pdu()->rfind_pdu<RawPDU>();
-        const IP &ip = packet.pdu()->rfind_pdu<IP>();
-        const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
-
-        string src_ip = ip.src_addr().to_string();
-        string dst_ip = ip.dst_addr().to_string();
-
-        int src_port = tcp.sport();
-        int dst_port = tcp.dport();
 
         // convert the raw data to a printable string
         stringstream data, data_printable;
@@ -125,7 +157,8 @@ string parse_get(Packet packet) {
         int host_index = data_str.find("Host: ", 0);
 
         if(get_index == -1 || host_index == -1) {
-            throw;
+            // cout << data_printable.str() << endl;
+            throw runtime_error("Raw TCP data does not contain a GET request.");
         }
         
         int end = data_str.find(" ", get_index+4);
@@ -133,6 +166,15 @@ string parse_get(Packet packet) {
         end = data_str.find("\r", host_index+6);
         string host = data_str.substr(host_index+6,end-(host_index+6));
         
+        const IP &ip = packet.pdu()->rfind_pdu<IP>();
+        const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
+
+        string src_ip = ip.src_addr().to_string();
+        string dst_ip = ip.dst_addr().to_string();
+
+        int src_port = tcp.sport();
+        int dst_port = tcp.dport();
+
         ss << "{" <<
             "\"type\":\"get\"," <<
             parse_radiotap(packet, rt) <<
@@ -187,6 +229,7 @@ int main(int argc, char* argv[]) {
                 // println(parse_types(packet));
                 println(parse_beacon(packet));
                 println(parse_probe(packet));
+                println(parse_ip(packet));
                 println(parse_get(packet));
             }
         } catch (...) {
