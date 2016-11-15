@@ -227,9 +227,9 @@ int main(int argc, char* argv[]) {
             Packet packet = sniffer.next_packet();
             if(packet) {
                 // println(parse_types(packet));
-                println(parse_beacon(packet));
-                println(parse_probe(packet));
-                println(parse_ip(packet));
+                // println(parse_beacon(packet));
+                // println(parse_probe(packet));
+                // println(parse_ip(packet));
                 println(parse_get(packet));
             }
         } catch (...) {

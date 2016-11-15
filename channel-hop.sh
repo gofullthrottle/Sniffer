@@ -6,10 +6,10 @@ sudo $airport -z
 
 while true
 do
-	for channel in 1 6 11 36 40 52 64 100 104 112 116 136
+	for channel in 1 6 11
 	do
 		sudo $airport --channel=$channel
 		sudo $airport -I | grep channel
-		sleep .25
+		sleep .5
 	done
 done
