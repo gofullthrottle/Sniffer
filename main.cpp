@@ -3,6 +3,7 @@
 #include <string>
 #include "tins/tins.h"
 #include <signal.h>
+#include <unistd.h>
 
 using namespace Tins;
 using namespace std;
@@ -25,55 +26,98 @@ HWAddress<6> get_dst_addr(const T& data) {
     return data.addr1();
 }
 
-string parse_types(const Packet& packet) {
-    stringstream ss;
+string custom_parse(const Packet& packet) {
     try {
+        stringstream ss;
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+        ss << (unsigned int) packet.timestamp().seconds() << " ";
+        ss << rt.channel_freq() << " ";
         const PDU *cur = packet.pdu();
         while(cur) {
             ss << Utils::to_string(cur->pdu_type()) << " ";
             cur = cur->inner_pdu();
         }
-        ss << "(" << packet.pdu()->size() << " bytes)";
+        return ss.str();
     } catch (...) {
+        return "";
     }
-    return ss.str();
 }
 
-string parse_radiotap(const Packet& packet, const RadioTap &rt) {
+string partial_parse_radiotap(const Packet& packet) {
     stringstream ss;
 
-    try {
-        unsigned int timestamp = packet.timestamp().seconds();
-        ss << "\"timestamp\":" << timestamp << ",";
-    } catch (...) {
-    }
-
-    try {
-        int dbm_signal = rt.dbm_signal();
-        ss << "\"dbm_signal\":" << dbm_signal << ",";
-    } catch (...) {
-    }
-
-    try {
-        int channel_freq = rt.channel_freq();
-        ss << "\"channel_freq\":" << channel_freq << ",";
-    } catch (...) {
-    }
-
-    return ss.str();
-}
-
-string parse_beacon(Packet packet) {
-    stringstream ss;
     try {
         const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+
+        try {
+            unsigned int timestamp = packet.timestamp().seconds();
+            ss << "\"timestamp\":" << timestamp;
+        } catch (...) {
+        }
+
+        try {
+            int dbm_signal = rt.dbm_signal();
+            ss << ",\"dbm_signal\":" << dbm_signal;
+        } catch (...) {
+        }
+
+        try {
+            int rate = rt.rate();
+            ss << ",\"rate\":" << rate;
+        } catch (...) {
+        }
+
+        try {
+            int channel_freq = rt.channel_freq();
+            ss << ",\"channel_freq\":" << channel_freq;
+        } catch (...) {
+        }
+
+    } catch (...) {
+    }
+
+    return ss.str();
+}
+
+string partial_parse_types(const Packet& packet) {
+    stringstream ss;
+    try {
+        const PDU *cur = packet.pdu();
+        ss << "\"types\":\"";
+        while(cur) {
+            ss << Utils::to_string(cur->pdu_type()) << " ";
+            cur = cur->inner_pdu();
+        }
+        ss.seekp(-1, ios_base::end);
+        ss << "\"";
+        // ss << ",\"size\":" << packet.pdu()->size();
+    } catch (...) {
+    }
+    return ss.str();
+}
+
+string parse_types(const Packet& packet) {
+    stringstream ss;
+    try {
+        ss << "{" <<
+            partial_parse_radiotap(packet) << "," <<
+            partial_parse_types(packet) << 
+            "}";
+    } catch (...) {
+    }
+    return ss.str();
+}
+
+string parse_beacon(const Packet& packet) {
+    stringstream ss;
+    try {
         const Dot11Beacon &data = packet.pdu()->rfind_pdu<Dot11Beacon>();
         string ssid = data.ssid();
         HWAddress<6> src_addr = get_src_addr(data);
         bool privacy = data.capabilities().privacy();
         ss << "{" <<
             "\"type\":\"beacon\"," <<
-            parse_radiotap(packet, rt) <<
+            partial_parse_radiotap(packet) << "," <<
             "\"src_addr\":\"" << src_addr << "\"," <<
             "\"ssid\":\"" << ssid << "\"," <<
             "\"privacy\":\"" << (privacy ? "true" : "false") << "\"" <<
@@ -83,18 +127,17 @@ string parse_beacon(Packet packet) {
     return ss.str();
 }
 
-string parse_probe(Packet packet) {
+string parse_probe(const Packet& packet) {
     stringstream ss;
     try {
         // first check that it's a probe request frame
         packet.pdu()->rfind_pdu<Tins::Dot11ProbeRequest>();
-        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
         const Dot11ManagementFrame &data = packet.pdu()->rfind_pdu<Dot11ManagementFrame>();
         string ssid = data.ssid();
         HWAddress<6> src_addr = get_src_addr(data);
         ss << "{" <<
             "\"type\":\"probe\"," <<
-            parse_radiotap(packet, rt) <<
+            partial_parse_radiotap(packet) << "," <<
             "\"src_addr\":\"" << src_addr << "\"," <<
             "\"ssid\":\"" << ssid << "\"" <<
             "}";
@@ -103,11 +146,10 @@ string parse_probe(Packet packet) {
     return ss.str();
 }
 
-string parse_ip(Packet packet) {
+string parse_ip(const Packet& packet) {
     stringstream ss;
     try {
         // first check that we have everything we need
-        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
         const IP &ip = packet.pdu()->rfind_pdu<IP>();
 
         string src_ip = ip.src_addr().to_string();
@@ -115,7 +157,8 @@ string parse_ip(Packet packet) {
 
         ss << "{" <<
             "\"type\":\"ip\"," <<
-            parse_radiotap(packet, rt) <<
+            partial_parse_types(packet) << "," <<
+            partial_parse_radiotap(packet) << "," <<
             "\"src\":{" <<
                 "\"ip\":\"" << src_ip << "\"" <<
                 "}," <<
@@ -128,11 +171,10 @@ string parse_ip(Packet packet) {
     return ss.str();
 }
 
-string parse_get(Packet packet) {
+string parse_get(const Packet& packet) {
     stringstream ss;
     try {
         // first check that we have everything we need
-        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
         const RawPDU &raw = packet.pdu()->rfind_pdu<RawPDU>();
 
         // convert the raw data to a printable string
@@ -165,6 +207,11 @@ string parse_get(Packet packet) {
         string get = data_str.substr(get_index+4,end-(get_index+4));
         end = data_str.find("\r", host_index+6);
         string host = data_str.substr(host_index+6,end-(host_index+6));
+
+        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
+
+        ss << rt.channel_freq() << "|http://" << host << get;
+        return ss.str();
         
         const IP &ip = packet.pdu()->rfind_pdu<IP>();
         const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
@@ -177,7 +224,8 @@ string parse_get(Packet packet) {
 
         ss << "{" <<
             "\"type\":\"get\"," <<
-            parse_radiotap(packet, rt) <<
+            partial_parse_radiotap(packet) << "," <<
+            partial_parse_types(packet) << "," <<
             "\"src\":{" <<
                 "\"ip\":\"" << src_ip << "\"," <<
                 "\"port\":" << src_port <<
@@ -218,7 +266,8 @@ int main(int argc, char* argv[]) {
     SnifferConfiguration config;
     config.set_promisc_mode(true);
     config.set_rfmon(true);
-    config.set_filter("type mgt or type data");
+    // config.set_filter("type data or type mgt subtype probe-req or type mgt subtype beacon");
+    config.set_filter("type data");
 
     Sniffer sniffer(interface, config);
 
@@ -226,6 +275,7 @@ int main(int argc, char* argv[]) {
         try {
             Packet packet = sniffer.next_packet();
             if(packet) {
+                // println(custom_parse(packet));
                 // println(parse_types(packet));
                 // println(parse_beacon(packet));
                 // println(parse_probe(packet));

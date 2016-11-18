@@ -4,14 +4,12 @@
 CHANNELS=(0 0 0 0 4 4 4 4)
 DOMAIN=kyle.local:3000
 
+IFACE=`./get-iface.sh`
+
 if [ `uname -s` = "Darwin" ];
 then
- 	IFACE="en0"
  	echo "Listening on OSX interface $IFACE"
 else
-	RPI_PREFIX="b8:27:eb"
-	# get the wlan interface that doesn't have the RPI MAC prefix
-	IFACE=`sudo ifconfig | grep wlan | grep -v $RPI_PREFIX | cut -d' ' -f1`
 	# get the raspberry pi's id from the hostname
 	ID=`hostname | rev | cut -c1`
 	# use the id to lookup the channel from the channels array
@@ -26,4 +24,4 @@ else
 	sudo iwconfig $IFACE
 fi
 
-sudo ./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" "http://$DOMAIN/add?url={}"
+sudo ./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" "http://$DOMAIN/add?{}"
