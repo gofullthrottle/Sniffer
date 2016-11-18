@@ -2,7 +2,7 @@
 
 #         0 1 2 3 4 5 6 7
 CHANNELS=(0 0 0 0 4 4 4 4)
-DOMAIN=kyle.local:3000
+DOMAIN=wifiwhisperer.com
 
 IFACE=`./get-iface.sh`
 
@@ -24,4 +24,8 @@ else
 	sudo iwconfig $IFACE
 fi
 
-sudo ./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" "http://$DOMAIN/add?{}"
+killall channel-hop
+./channel-hop > /dev/null 2> /dev/null &
+
+# needs to be sudo on linux
+./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" "http://$DOMAIN/add?{}"

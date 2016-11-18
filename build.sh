@@ -40,8 +40,12 @@ else
 fi
 
 if [ $OS = "osx" ]; then
-  echo "Building channel-hop"
-  clang -framework Foundation -framework CoreWLAN channel-hop.m -o channel-hop
+  if [ -f "channel-hop" ]; then
+    echo "Not re-building channel-hop"
+  else
+    echo "Building channel-hop"
+    clang -framework Foundation -framework CoreWLAN channel-hop.m -o channel-hop
+  fi
 fi
 
 TINS_LIB_PATH="lib/libtins/"$OS"/lib"

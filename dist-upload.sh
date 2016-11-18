@@ -9,7 +9,7 @@ rsync -a channel-hop.m dist/
 
 # for ID in $(seq 4 7)
 # for ID in cafe white
-for SERVER in 10.10.201.184
+for SERVER in ww-imac.local
 do
 	{
 		# USER="pi"
