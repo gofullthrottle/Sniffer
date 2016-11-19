@@ -3,9 +3,9 @@
 // $ clang -framework Foundation -framework CoreWLAN channel-hop.m -o channel-hop
 
 int hopDelay = 200; // milliseconds
-int n = 10;
-int channelList[] =      {1,4,6,9,13,40,108,112,116,128};
-int channelWidthList[] = {20,20,20,20,20,80,80,80,80,80};
+int n = 5;
+int channelList[] =      {9,40,108,112,116};
+int channelWidthList[] = {20,80,80,80,80};
 
 #import <Foundation/Foundation.h>
 #import <CoreWLAN/CoreWLAN.h>
