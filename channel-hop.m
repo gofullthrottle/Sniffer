@@ -2,10 +2,15 @@
 // build with:
 // $ clang -framework Foundation -framework CoreWLAN channel-hop.m -o channel-hop
 
+// this will fail if the airport power is off (-3903)
+// or if you are currently monitoring 
+
 int hopDelay = 200; // milliseconds
-int n = 5;
-int channelList[] =      {9,40,108,112,116};
-int channelWidthList[] = {20,80,80,80,80};
+int n = 37;
+int channelList[] = {1,2,3,4,5,6,7,8,9,10,11,12,13,
+    36,40,44,48,52,56,60,64,100,104,108,112,116,120,124,128,132,136,140,149,153,157,161,165};
+int channelWidthList[] = {20,20,20,20,20,20,20,20,20,20,20,20,20,
+    80,80,80,80,80,80,80,80,80,80,80,80,80,80,80,80,40,40,20,80,80,80,80,20};
 
 #import <Foundation/Foundation.h>
 #import <CoreWLAN/CoreWLAN.h>

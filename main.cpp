@@ -8,6 +8,19 @@
 using namespace Tins;
 using namespace std;
 
+bool print0 = false;
+void println(string str) {
+    if(str.size() > 0) {
+        cout << str;
+        if(print0) {
+            cout << '\0';
+        } else {
+            cout << endl;
+        }
+        cout.flush();
+    }
+}
+
 template <class T>
 HWAddress<6> get_src_addr(const T& data) {
     if(!data.from_ds() && !data.to_ds())
@@ -49,11 +62,8 @@ string partial_parse_radiotap(const Packet& packet) {
     try {
         const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
 
-        try {
-            unsigned int timestamp = packet.timestamp().seconds();
-            ss << "\"timestamp\":" << timestamp;
-        } catch (...) {
-        }
+        unsigned int timestamp = packet.timestamp().seconds();
+        ss << "\"timestamp\":" << timestamp;
 
         try {
             int dbm_signal = rt.dbm_signal();
@@ -208,11 +218,6 @@ string parse_get(const Packet& packet) {
         end = data_str.find("\r", host_index+6);
         string host = data_str.substr(host_index+6,end-(host_index+6));
 
-        const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
-
-        ss << rt.channel_freq() << "|http://" << host << get;
-        return ss.str();
-        
         const IP &ip = packet.pdu()->rfind_pdu<IP>();
         const TCP &tcp = packet.pdu()->rfind_pdu<TCP>();
 
@@ -243,19 +248,6 @@ string parse_get(const Packet& packet) {
     return ss.str();
 }
 
-bool print0 = false;
-void println(string str) {
-    if(str.size() > 0) {
-        cout << str;
-        if(print0) {
-            cout << '\0';
-        } else {
-            cout << endl;
-        }
-        cout.flush();
-    }
-}
-
 int main(int argc, char* argv[]) {
 
     string interface = "en0";
@@ -266,8 +258,8 @@ int main(int argc, char* argv[]) {
     SnifferConfiguration config;
     config.set_promisc_mode(true);
     config.set_rfmon(true);
-    // config.set_filter("type data or type mgt subtype probe-req or type mgt subtype beacon");
-    config.set_filter("type data");
+    config.set_filter("type data and tcp port http");
+    // config.set_filter("type data or type mgt subtype probe-req");
 
     Sniffer sniffer(interface, config);
 

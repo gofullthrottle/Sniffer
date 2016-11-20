@@ -4,4 +4,4 @@ lib/
 *.zip
 sniffer
 dist/
-channelhop
+channel-hop

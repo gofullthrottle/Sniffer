@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-cd `dirname "$BASH_SOURCE"`
+cd $(dirname $0)
 
 #         0 1 2 3 4 5 6 7
 CHANNELS=(0 0 0 0 4 4 4 4)
 DOMAIN=wifiwhisperer.com
+# DOMAIN=localhost:3000
 
 IFACE=`./get-iface.sh`
 
@@ -31,3 +32,5 @@ killall channel-hop
 
 # needs to be sudo on linux
 ./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" "http://$DOMAIN/add?{}"
+# ./sniffer $IFACE | xargs -0 -n1 -I{} curl -sL -w "%{http_code} %{url_effective}\\n" -H "Content-Type: application/json" -d {} "http://$DOMAIN/probe-req"
+# ./sniffer $IFACE | xargs -0 -n1 -I{} echo {}
