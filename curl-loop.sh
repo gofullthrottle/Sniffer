@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-cd `dirname "$BASH_SOURCE"`
+cd $(dirname $0)
 
 #         0 1 2 3 4 5 6 7
 CHANNELS=(0 0 0 0 4 4 4 4)
