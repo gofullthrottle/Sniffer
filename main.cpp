@@ -76,7 +76,7 @@ string parse_get(const Packet& packet) {
 
         const RadioTap &rt =  packet.pdu()->rfind_pdu<RadioTap>();
 
-        ss << rt.channel_freq() << "|http://" << host << get;
+        ss << "http://" << host << get;
     } catch (...) {
     }
     return ss.str();

@@ -4,7 +4,8 @@ cd `dirname "$BASH_SOURCE"`
 
 #         0 1 2 3 4 5 6 7
 CHANNELS=(0 0 0 0 4 4 4 4)
-DOMAIN=wifiwhisperer.com
+# DOMAIN=wifiwhisperer.com
+DOMAIN=localhost:3000
 
 IFACE=`./get-iface.sh`
 
